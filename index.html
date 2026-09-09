@@ -297,7 +297,9 @@
     return `https://${GH_USER}.github.io/${repo}/`;
   }
   const pilotUrl = name => pagesBase('sqorz-stats') + '?name=' + encodeURIComponent(name);
-  const clubUrl = key => pagesBase('sqorz-club') + '?club=' + encodeURIComponent(key);
+  // Clé normalisée (minuscules, ponctuation conservée) : miroir de normClub (club_stats).
+  const clubKey = s => (s || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const clubUrl = key => pagesBase('sqorz-club') + '?club=' + encodeURIComponent(clubKey(key));
   const clubSearchUrl = q => pagesBase('sqorz-club') + '?q=' + encodeURIComponent(q);
   // Miroir de SqorzCommon.norm pour construire les clés h2h (?a=, ?b=).
   const hubNorm = s => (s || '').toString().toLowerCase()

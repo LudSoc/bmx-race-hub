@@ -233,3 +233,10 @@ test('full index : 17k noms, un one-timer trouvable, recherche <2s', () => {
   assert.ok(res.some(r => r.key === oneTimer.n), 'one-timer trouvable par nom exact');
   assert.ok(dt < 2000, `recherche full en ${dt}ms`);
 });
+
+test('clubUrl : clé normalisée minuscule (clés club_stats)', () => {
+  const { run } = makeEnv(api403);
+  const api = run();
+  assert.ok(api.clubUrl('BESANC').includes('?club=besanc'), 'code brut -> minuscule');
+  assert.ok(api.clubUrl('JOUE-T').includes('?club=joue-t'), 'tiret conservé');
+});
