@@ -34,7 +34,7 @@ function makeEnv(fetchImpl) {
     window: { matchMedia: () => ({ matches: false }) },
   };
   sandbox.window.window = sandbox.window;
-  const run = new Function(...Object.keys(sandbox), '__els', script + '\nreturn { __main: () => __els.main.innerHTML + (__els.projects ? __els.projects.innerHTML : ""), __suivis: () => __els.suivis.innerHTML, routeSearch, hubNorm, parseDuelQuery, pilotUrl, clubUrl, clubSearchUrl, duelUrl, pagesBase };');
+  const run = new Function(...Object.keys(sandbox), '__els', script + '\nreturn { __main: () => __els.main.innerHTML + (__els.projects ? __els.projects.innerHTML : ""), __suivis: () => __els.suivis.innerHTML, routeSearch, hubNorm, parseDuelQuery, pilotUrl, clubUrl, clubSearchUrl, duelUrl, pagesBase, searchHubIndex, lev2 };');
   return { run: () => run(...Object.values(sandbox), els), store };
 }
 const tick = (ms = 50) => new Promise(r => setTimeout(r, ms));
@@ -147,4 +147,61 @@ test('suivis : rien en localStorage → section absente', async () => {
   const api = run();
   await tick();
   assert.equal(api.__suivis(), '', 'pas de section vide');
+});
+
+const FIXTURE = {
+  pilots: [
+    { n: 'Léa Martin', c: 'BESANC', e: 90 },
+    { n: 'Léo Martinot', c: 'COURNO', e: 40 },
+    { n: 'Max Dupont', c: 'BEYNOS', e: 60 },
+    { n: 'Anna Dupond', c: 'BEYNOS', e: 5 },
+  ],
+  clubs: {
+    BESANC: { name: 'BMX BESANCON', city: 'BESANCON' },
+    BEYNOS: { name: "AIN'PULSION COTIERE BMX", city: 'BEYNOST' },
+  },
+};
+
+test('searchHubIndex : exact > mot > préfixe > substring, égalité → engagements', () => {
+  const { run } = makeEnv(api403);
+  const api = run();
+  const res = api.searchHubIndex('martin', FIXTURE);
+  assert.equal(res[0].key, 'Léa Martin', 'mot exact + 90 eng. devant');
+  assert.equal(res[0].kind, 'pilot');
+  const dup = api.searchHubIndex('dupont', FIXTURE);
+  assert.equal(dup[0].key, 'Max Dupont', 'exact devant substring/fuzzy');
+  assert.ok(dup.some(r => r.key === 'Anna Dupond'), 'faute de frappe tolérée (dupond→dupont)');
+});
+
+test('searchHubIndex : accents, casse, code club et nom de club', () => {
+  const { run } = makeEnv(api403);
+  const api = run();
+  assert.equal(api.searchHubIndex('lea', FIXTURE)[0].key, 'Léa Martin');
+  assert.equal(api.searchHubIndex('LEA MARTIN', FIXTURE)[0].key, 'Léa Martin');
+  const byCode = api.searchHubIndex('beynos', FIXTURE);
+  assert.equal(byCode[0].kind, 'club');
+  assert.equal(byCode[0].key, 'BEYNOS');
+  const byName = api.searchHubIndex('besançon', FIXTURE);
+  assert.equal(byName[0].key, 'BESANC');
+});
+
+test('searchHubIndex : vide/sans index → [], plafond 8', () => {
+  const { run } = makeEnv(api403);
+  const api = run();
+  assert.deepEqual(api.searchHubIndex('', FIXTURE), []);
+  assert.deepEqual(api.searchHubIndex('martin', null), []);
+  const big = { pilots: Array.from({ length: 30 }, (_, i) => ({ n: 'Test Pilot' + i, c: '', e: 1 })), clubs: {} };
+  assert.ok(api.searchHubIndex('test', big).length <= 8);
+});
+
+test('hub-search.json vendu : structure + requêtes réelles', () => {
+  const j = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hub-search.json'), 'utf8'));
+  assert.ok(j._meta && Array.isArray(j.pilots) && j.pilots.length >= 1000, 'top pilotes');
+  assert.ok(j.clubs && j.clubs.BESANC && j.clubs.BESANC.name === 'BMX BESANCON', 'clubs canoniques');
+  const { run } = makeEnv(api403);
+  const api = run();
+  const res = api.searchHubIndex('topenot', j);
+  assert.ok(res.length > 0 && res[0].key.toLowerCase().includes('topenot'), 'Enzo Topenot trouvé');
+  const club = api.searchHubIndex('cagnes', j);
+  assert.ok(club.some(r => r.kind === 'club' && r.key === 'USCBMX'), 'US Cagnes trouvée');
 });

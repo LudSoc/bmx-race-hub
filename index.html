@@ -312,6 +312,57 @@
     return (a && b) ? { a, b } : null;
   }
 
+  // --- Mini-index de recherche (top pilotes + clubs, hub-search.json) ---
+  // Chargé en différé après le 1er affichage ; échec silencieux → repli favoris + liens génériques.
+  let searchIdx = null;
+  function lev2(a, b) {
+    const n = a.length, m = b.length;
+    if (Math.abs(n - m) > 2) return 3;
+    let prev = Array.from({ length: m + 1 }, (_, j) => j);
+    for (let i = 1; i <= n; i++) {
+      const cur = [i];
+      let rowMin = i;
+      for (let j = 1; j <= m; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+        if (cur[j] < rowMin) rowMin = cur[j];
+      }
+      if (rowMin > 2) return 3;
+      prev = cur;
+    }
+    return prev[m];
+  }
+  // Requête → [{ kind: 'pilot'|'club', key, name, club, score }] trié desc, max 8.
+  // key pilote = nom exact (pour ?name=), key club = code (pour ?club=).
+  function searchHubIndex(query, idx) {
+    const q = hubNorm(query);
+    if (!q || !idx) return [];
+    const out = [];
+    for (const p of (idx.pilots || [])) {
+      const name = hubNorm(p.n);
+      if (!name) continue;
+      const words = name.split(' ');
+      let s = 0;
+      if (name === q) s = 100;
+      else if (words.some(w => w === q)) s = 85;
+      else if (name.startsWith(q)) s = 75;
+      else if (q.length >= 3 && words.some(w => w.startsWith(q))) s = 65;
+      else if (name.includes(q)) s = 50;
+      else if (q.length >= 4 && (lev2(name, q) <= 2 || words.some(w => w.length >= 4 && lev2(w, q) <= 1))) s = 32;
+      if (s > 0) out.push({ kind: 'pilot', key: p.n, name: p.n, club: p.c || '', score: s + Math.min(9, (p.e || 0) / 20) });
+    }
+    for (const [code, c] of Object.entries(idx.clubs || {})) {
+      const cn = hubNorm(code), fn = hubNorm(c.name || '');
+      let s = 0;
+      if (cn === q) s = 100;
+      else if (fn.split(' ').some(w => w === q)) s = 85;
+      else if (cn.startsWith(q) || fn.startsWith(q)) s = 75;
+      else if (fn.includes(q) || cn.includes(q)) s = 50;
+      if (s > 0) out.push({ kind: 'club', key: code, name: (c.name || code) + ' (' + code + ')', club: '', score: s });
+    }
+    return out.sort((a, b) => b.score - a.score).slice(0, 8);
+  }
+
   // --- Recherche universelle : route, ne devine pas ---
   function routeSearch(q) {
     const query = (q || '').trim();
@@ -320,15 +371,31 @@
     if (duel) return [{ kind: 'duel', label: `⚔️ ${duel.a} vs ${duel.b}`, url: duelUrl(duel.a, duel.b) }];
     const out = [];
     const nq = hubNorm(query);
+    const seenPilot = new Set(), seenClub = new Set();
     for (const f of readFavs('pilots')) {
-      if (hubNorm(f.name).includes(nq)) out.push({ kind: 'pilot', label: `🏃 ${f.name}`, url: pilotUrl(f.name) });
+      if (hubNorm(f.name).includes(nq)) {
+        out.push({ kind: 'pilot', label: `🏃 ${f.name}`, url: pilotUrl(f.name) });
+        seenPilot.add(hubNorm(f.name));
+      }
       if (out.length >= 6) break;
     }
     for (const f of readFavs('clubs')) {
       if (hubNorm(f.name).includes(nq) || hubNorm(f.key).includes(nq)) {
         out.push({ kind: 'club', label: `📍 ${f.name}`, url: clubUrl(f.key) });
+        seenClub.add(hubNorm(f.key));
       }
       if (out.length >= 8) break;
+    }
+    // Index précis : complète (pilotes actifs + tous les clubs), sans doublons.
+    if (searchIdx && out.length < 10) {
+      for (const hit of searchHubIndex(query, searchIdx)) {
+        if (hit.kind === 'pilot' && seenPilot.has(hubNorm(hit.key))) continue;
+        if (hit.kind === 'club' && seenClub.has(hubNorm(hit.key))) continue;
+        out.push(hit.kind === 'pilot'
+          ? { kind: 'pilot', label: `🏃 ${hit.name}${hit.club ? ' · ' + hit.club : ''}`, url: pilotUrl(hit.key) }
+          : { kind: 'club', label: `📍 ${hit.name}`, url: clubUrl(hit.key) });
+        if (out.length >= 10) break;
+      }
     }
     out.push({ kind: 'pilot-search', label: `🔍 Pilote « ${query} »`, url: pilotUrl(query) });
     out.push({ kind: 'club-search', label: `🔍 Club « ${query} »`, url: clubSearchUrl(query) });
@@ -589,6 +656,16 @@
   `;
   renderSuivis();
   wireSearch();
+  // Index de recherche en différé (80 Ko) ; ré-affiche si une requête est en cours.
+  fetch('hub-search.json').then(r => {
+    if (!r.ok) return null;
+    return r.json();
+  }).then(j => {
+    if (!j || !j.pilots) return;
+    searchIdx = j;
+    const inp = document.getElementById('hubSearch');
+    if (inp && inp.value.trim()) renderSearchResults(routeSearch(inp.value));
+  }).catch(() => {});
   document.addEventListener('click', e => {
     const b = e.target.closest('[data-unfav-type]');
     if (!b) return;
