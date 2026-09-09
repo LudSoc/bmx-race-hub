@@ -154,6 +154,40 @@
   .btn-retry { margin-top:8px; padding:6px 14px; border-radius:8px; cursor:pointer; background:var(--accent); color:#fff; border:none; font-size:13px; }
   .btn-retry:hover { background:var(--accent-hi); }
 
+  /* Recherche universelle */
+  .search-wrap{position:relative;margin-bottom:18px}
+  #hubSearch{
+    width:100%;box-sizing:border-box;padding:12px 16px;border-radius:12px;
+    background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);
+    font:inherit;font-size:14px;color:var(--ink);
+  }
+  #hubSearch:focus{outline:none;border-color:var(--accent)}
+  .search-results{
+    position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:10;
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    box-shadow:var(--shadow);overflow:hidden;
+  }
+  .search-results a{
+    display:block;padding:10px 16px;font-size:13.5px;color:var(--ink);
+    text-decoration:none;border-bottom:1px solid var(--line);
+  }
+  .search-results a:last-child{border-bottom:none}
+  .search-results a:hover,.search-results a.active{background:var(--card-soft)}
+
+  /* Mes suivis */
+  .suivis{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:16px 20px;margin-bottom:18px;
+  }
+  .suivis h2{font-size:13px;font-weight:700;color:var(--muted);margin:0 0 10px;text-transform:uppercase;letter-spacing:.6px}
+  .suivis h3{font-size:12px;font-weight:700;color:var(--ink-2);margin:12px 0 6px}
+  .suivis h3:first-of-type{margin-top:0}
+  .suivi-row{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13.5px}
+  .suivi-row a{color:var(--ink);text-decoration:none;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .suivi-row a:hover{color:var(--accent)}
+  .unfav-btn{background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px;padding:2px 6px;border-radius:6px}
+  .unfav-btn:hover{color:var(--accent);background:var(--card-soft)}
+
   /* Responsive mobile */
   @media(max-width:520px){
     .topbar{padding:32px 16px 96px}
@@ -196,6 +230,8 @@
 
 <script>
   function renderSkeleton(count = 3) {
+    const host = document.getElementById('projects');
+    if (!host) return;
     const cards = Array.from({ length: count }, () => `
       <div class="project-card">
         <div class="skel skel-icon"></div>
@@ -207,7 +243,7 @@
         <div class="skel skel-btn"></div>
       </div>
     `).join('');
-    document.getElementById('main').innerHTML = `
+    host.innerHTML = `
       <div class="status-bar">
         <div class="status-dot" style="background:var(--warn)" aria-hidden="true"></div>
         Chargement…
@@ -230,6 +266,74 @@
     'linear-gradient(135deg,#2e4158,#7aa6c2)',
     'linear-gradient(135deg,#506f8f,#9bb5cf)',
   ];
+
+  // --- État partagé inter-outils (convention sqorz.*, cf. common.js) ---
+  // Le hub ne dépend pas de common.js : lecteurs minimaux (lecture + retrait).
+  function readFavs(type) {
+    try {
+      const v = JSON.parse(localStorage.getItem('sqorz.favs.' + type));
+      return Array.isArray(v) ? v.filter(e => e && e.key) : [];
+    } catch { return []; }
+  }
+  function removeFav(type, key) {
+    try {
+      const list = readFavs(type).filter(e => e.key !== key);
+      localStorage.setItem('sqorz.favs.' + type, JSON.stringify(list));
+    } catch {}
+    renderSuivis();
+  }
+  function readRecent(n = 8) {
+    try {
+      const v = JSON.parse(localStorage.getItem('sqorz.recent'));
+      return (Array.isArray(v) ? v : []).slice(0, n);
+    } catch { return []; }
+  }
+
+  // --- Liens profonds (base locale en dev, prod sinon) ---
+  const PAGES_LOCAL = { 'sqorz-stats': 'sqorz_stats', 'sqorz-club': 'club_stats', 'sqorz-head2head': 'h2h_stats', 'sqorz-category': 'category_stats' };
+  function pagesBase(repo) {
+    const h = (location.hostname || '');
+    if (h === 'localhost' || h === '127.0.0.1') return `/${PAGES_LOCAL[repo]}/`;
+    return `https://${GH_USER}.github.io/${repo}/`;
+  }
+  const pilotUrl = name => pagesBase('sqorz-stats') + '?name=' + encodeURIComponent(name);
+  const clubUrl = key => pagesBase('sqorz-club') + '?club=' + encodeURIComponent(key);
+  const clubSearchUrl = q => pagesBase('sqorz-club') + '?q=' + encodeURIComponent(q);
+  // Miroir de SqorzCommon.norm pour construire les clés h2h (?a=, ?b=).
+  const hubNorm = s => (s || '').toString().toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9 ]+/g, ' ').trim().replace(/\s+/g, ' ');
+  const duelUrl = (a, b) => pagesBase('sqorz-head2head')
+    + '?a=' + encodeURIComponent(hubNorm(a)) + '&b=' + encodeURIComponent(hubNorm(b));
+  function parseDuelQuery(q) {
+    const m = String(q || '').split(/\s+(?:vs\.?|contre)\s+/i);
+    if (m.length !== 2) return null;
+    const a = m[0].trim(), b = m[1].trim();
+    return (a && b) ? { a, b } : null;
+  }
+
+  // --- Recherche universelle : route, ne devine pas ---
+  function routeSearch(q) {
+    const query = (q || '').trim();
+    if (!query) return [];
+    const duel = parseDuelQuery(query);
+    if (duel) return [{ kind: 'duel', label: `⚔️ ${duel.a} vs ${duel.b}`, url: duelUrl(duel.a, duel.b) }];
+    const out = [];
+    const nq = hubNorm(query);
+    for (const f of readFavs('pilots')) {
+      if (hubNorm(f.name).includes(nq)) out.push({ kind: 'pilot', label: `🏃 ${f.name}`, url: pilotUrl(f.name) });
+      if (out.length >= 6) break;
+    }
+    for (const f of readFavs('clubs')) {
+      if (hubNorm(f.name).includes(nq) || hubNorm(f.key).includes(nq)) {
+        out.push({ kind: 'club', label: `📍 ${f.name}`, url: clubUrl(f.key) });
+      }
+      if (out.length >= 8) break;
+    }
+    out.push({ kind: 'pilot-search', label: `🔍 Pilote « ${query} »`, url: pilotUrl(query) });
+    out.push({ kind: 'club-search', label: `🔍 Club « ${query} »`, url: clubSearchUrl(query) });
+    return out;
+  }
 
   // Liste locale de secours : l'API GitHub anonyme est limitée à 60 req/h/IP
   // (403 fréquents derrière une IP partagée). branch = branche par défaut du dépôt.
@@ -379,7 +483,7 @@
     const cards = repos
       .map((r, i) => renderCard(r, icons[i], ICON_GRADIENTS[i % 4]))
       .join('');
-    document.getElementById('main').innerHTML = `
+    document.getElementById('projects').innerHTML = `
       <div class="status-bar">
         <div class="status-dot" aria-hidden="true"></div>
         ${label}${source === 'api' ? ' · mis à jour il y a quelques secondes' : ' · dates non actualisées'}
@@ -419,6 +523,77 @@
 
   themeBtn.addEventListener('click', () => applyTheme(nextPref(currentPref())));
   applyTheme(currentPref());
+  // --- Mes suivis (favoris + récents inter-outils) ---
+  function suiviRow(label, url, type, key) {
+    const x = type && key
+      ? `<button class="unfav-btn" data-unfav-type="${esc(type)}" data-unfav-key="${esc(key)}" title="Ne plus suivre" aria-label="Ne plus suivre ${esc(label)}">✕</button>`
+      : '';
+    return `<div class="suivi-row"><a href="${url}">${esc(label)}</a>${x}</div>`;
+  }
+  function renderSuivis() {
+    const wrap = document.getElementById('suivis');
+    if (!wrap) return;
+    const pilots = readFavs('pilots');
+    const clubs = readFavs('clubs');
+    const recent = readRecent(8);
+    if (!pilots.length && !clubs.length && !recent.length) { wrap.innerHTML = ''; return; }
+    let html = '<section class="suivis" aria-label="Mes suivis"><h2>★ Mes suivis</h2>';
+    if (pilots.length) {
+      html += '<h3>Pilotes</h3>' + pilots.map(f =>
+        suiviRow('🏃 ' + f.name, pilotUrl(f.name), 'pilots', f.key)).join('');
+    }
+    if (clubs.length) {
+      html += '<h3>Clubs</h3>' + clubs.map(f =>
+        suiviRow('📍 ' + f.name, clubUrl(f.key), 'clubs', f.key)).join('');
+    }
+    if (recent.length) {
+      html += '<h3>Récents</h3>' + recent.map(r =>
+        suiviRow((r.t === 'clubs' ? '📍 ' : '🏃 ') + r.n,
+          r.t === 'clubs' ? clubUrl(r.k) : pilotUrl(r.n), null, null)).join('');
+    }
+    wrap.innerHTML = html + '</section>';
+  }
+
+  // --- Recherche universelle ---
+  function renderSearchResults(items) {
+    const box = document.getElementById('hubSearchResults');
+    if (!box) return;
+    if (!items.length) { box.hidden = true; box.innerHTML = ''; return; }
+    box.innerHTML = items.map((it, i) =>
+      `<a href="${it.url}" role="option" data-idx="${i}">${esc(it.label)}</a>`).join('');
+    box.hidden = false;
+  }
+  function wireSearch() {
+    const inp = document.getElementById('hubSearch');
+    if (!inp) return;
+    inp.addEventListener('input', () => renderSearchResults(routeSearch(inp.value)));
+    inp.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      const items = routeSearch(inp.value);
+      if (items.length) location.href = items[0].url;
+    });
+    inp.addEventListener('blur', () => setTimeout(() => {
+      const box = document.getElementById('hubSearchResults');
+      if (box) { box.hidden = true; }
+    }, 150));
+  }
+
+  // --- Démarrage : recherche + suivis synchrones, projets en arrière-plan ---
+  document.getElementById('main').innerHTML = `
+    <div class="search-wrap">
+      <input id="hubSearch" type="text" placeholder="Pilote, club, ou « Dupont vs Martin »…" autocomplete="off" aria-label="Recherche universelle">
+      <div class="search-results" id="hubSearchResults" role="listbox" hidden></div>
+    </div>
+    <div id="suivis"></div>
+    <div id="projects"></div>
+  `;
+  renderSuivis();
+  wireSearch();
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-unfav-type]');
+    if (!b) return;
+    removeFav(b.dataset.unfavType, b.dataset.unfavKey);
+  });
   loadProjects();
 </script>
 

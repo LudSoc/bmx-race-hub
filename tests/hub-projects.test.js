@@ -27,12 +27,14 @@ function makeEnv(fetchImpl) {
     document: {
       getElementById: id => (els[id] || (els[id] = el())),
       documentElement: { classList: { toggle() {} }, dataset: {} },
+      addEventListener() {},
     },
+    location: { hostname: 'test.invalid', search: '', href: '' },
     fetch: fetchImpl,
     window: { matchMedia: () => ({ matches: false }) },
   };
   sandbox.window.window = sandbox.window;
-  const run = new Function(...Object.keys(sandbox), '__els', script + '\nreturn { __main: () => __els.main.innerHTML };');
+  const run = new Function(...Object.keys(sandbox), '__els', script + '\nreturn { __main: () => __els.main.innerHTML + (__els.projects ? __els.projects.innerHTML : ""), __suivis: () => __els.suivis.innerHTML, routeSearch, hubNorm, parseDuelQuery, pilotUrl, clubUrl, clubSearchUrl, duelUrl, pagesBase };');
   return { run: () => run(...Object.values(sandbox), els), store };
 }
 const tick = (ms = 50) => new Promise(r => setTimeout(r, ms));
@@ -77,4 +79,72 @@ test('API OK → frais + mise en cache', async () => {
   assert.ok(html.includes('via GitHub API'), 'source annoncée');
   assert.ok(html.includes('sqorz-club'), 'carte affichée');
   assert.ok(store.sqorzHubRepos && JSON.parse(store.sqorzHubRepos).repos.length === 1, 'cache écrit');
+});
+
+test('hubNorm : parité avec SqorzCommon.norm (clés h2h ?a=&b=)', () => {
+  const commonSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'sqorz_stats', 'common.js'), 'utf8');
+  const SC = new Function('window', commonSrc + '\nreturn window.SqorzCommon;')({});
+  const { run } = makeEnv(api403);
+  const api = run();
+  for (const name of ['Jean Dupont', 'Léa MARTIN', 'Jean-Pierre O’Brien', '  Max   VERSTAPPEN  ']) {
+    assert.equal(api.hubNorm(name), SC.norm(name), `parité pour « ${name} »`);
+  }
+});
+
+test('parseDuelQuery : « X vs Y » et « X contre Y »', () => {
+  const { run } = makeEnv(api403);
+  const api = run();
+  assert.deepEqual(api.parseDuelQuery('Dupont vs Martin'), { a: 'Dupont', b: 'Martin' });
+  assert.deepEqual(api.parseDuelQuery('dupont VS martin'), { a: 'dupont', b: 'martin' });
+  assert.deepEqual(api.parseDuelQuery('Léa contre Max'), { a: 'Léa', b: 'Max' });
+  assert.equal(api.parseDuelQuery('Dupont'), null);
+  assert.equal(api.parseDuelQuery('Dupont vs '), null);
+  assert.equal(api.parseDuelQuery(''), null);
+});
+
+test('routeSearch : duel direct, favoris d’abord, replis pilote/club', () => {
+  const { run, store } = makeEnv(api403);
+  store['sqorz.favs.pilots'] = JSON.stringify([{ key: 'lea martin', name: 'Léa Martin' }]);
+  store['sqorz.favs.clubs'] = JSON.stringify([{ key: 'besanc', name: 'BMX BESANCON (BESANC)' }]);
+  const api = run();
+  const duel = api.routeSearch('Léa vs Max');
+  assert.equal(duel.length, 1);
+  assert.ok(duel[0].url.includes('sqorz-head2head') && duel[0].url.includes('a=lea&b=max'), `url duel: ${duel[0].url}`);
+  const fav = api.routeSearch('martin');
+  assert.equal(fav[0].kind, 'pilot');
+  assert.ok(fav[0].url.includes('sqorz-stats') && fav[0].url.includes('name=L%C3%A9a%20Martin'), `url pilote: ${fav[0].url}`);
+  const club = api.routeSearch('besanc');
+  assert.equal(club[0].kind, 'club');
+  assert.ok(club[0].url.includes('sqorz-club') && club[0].url.includes('club=besanc'), `url club: ${club[0].url}`);
+  const plain = api.routeSearch('inconnu xyz');
+  assert.deepEqual(plain.map(r => r.kind), ['pilot-search', 'club-search']);
+  assert.deepEqual(api.routeSearch('  '), []);
+});
+
+test('pagesBase : local en dev, prod sinon', () => {
+  const { run } = makeEnv(api403);
+  const api = run();
+  assert.ok(api.pilotUrl('X').startsWith('https://ludsoc.github.io/sqorz-stats/'), 'prod par défaut');
+});
+
+test('suivis : favoris + récents rendus avec liens profonds, vide → rien', async () => {
+  const { run, store } = makeEnv(api403);
+  store['sqorz.favs.pilots'] = JSON.stringify([{ key: 'lea martin', name: 'Léa Martin' }]);
+  store['sqorz.favs.clubs'] = JSON.stringify([{ key: 'besanc', name: 'BMX BESANCON (BESANC)' }]);
+  store['sqorz.recent'] = JSON.stringify([{ t: 'clubs', k: 'courno', n: 'BMX COURNON (COURNO)', at: 1 }]);
+  const api = run();
+  await tick();
+  const html = api.__suivis();
+  assert.ok(html.includes('Mes suivis'), 'section présente');
+  assert.ok(html.includes('sqorz-stats/?name=L%C3%A9a%20Martin'), 'lien pilote');
+  assert.ok(html.includes('sqorz-club/?club=besanc'), 'lien club');
+  assert.ok(html.includes('sqorz-club/?club=courno'), 'lien récent');
+  assert.ok(html.includes('data-unfav-type="pilots"'), 'bouton retirer');
+});
+
+test('suivis : rien en localStorage → section absente', async () => {
+  const { run } = makeEnv(api403);
+  const api = run();
+  await tick();
+  assert.equal(api.__suivis(), '', 'pas de section vide');
 });
