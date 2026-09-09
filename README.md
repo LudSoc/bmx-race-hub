@@ -52,6 +52,6 @@ Hub centralisé pour les outils de statistiques BMX Race, alimentés par les don
 
 HTML/CSS/JS en fichier unique — pas de framework, pas d'étape de build. Hébergé sur GitHub Pages. Chaque outil est un repo séparé détecté automatiquement par le hub.
 
-`hub-search.json` (copie versionnée pour la recherche universelle : top 1500 pilotes + clubs) est généré dans sqorz-stats (`node tools/build-hub-search.cjs`) puis copié ici après chaque rebuild hebdo de l'index.
+`hub-search.json` (copie versionnée pour la recherche universelle : les 17k pilotes + clubs, ~730 Ko, chargé en différé) est généré dans sqorz-stats (`node tools/build-hub-search.cjs`) puis copié ici après chaque rebuild hebdo de l'index.
 
 > Projet communautaire non officiel, non affilié à Sqorz.
