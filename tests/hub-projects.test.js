@@ -240,3 +240,12 @@ test('clubUrl : clé normalisée minuscule (clés club_stats)', () => {
   assert.ok(api.clubUrl('BESANC').includes('?club=besanc'), 'code brut -> minuscule');
   assert.ok(api.clubUrl('JOUE-T').includes('?club=joue-t'), 'tiret conservé');
 });
+
+test('suivis : récents limités à 3 entrées', async () => {
+  const { run, store } = makeEnv(api403);
+  store['sqorz.recent'] = JSON.stringify([0, 1, 2, 3, 4].map(i => ({ t: 'pilots', k: 'p' + i, n: 'Pilot ' + i, at: i })));
+  const api = run();
+  await tick();
+  const rows = (api.__suivis().match(/class="suivi-row"/g) || []).length;
+  assert.equal(rows, 3, `${rows} lignes récents`);
+});

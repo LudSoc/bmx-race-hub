@@ -625,7 +625,7 @@
     if (!wrap) return;
     const pilots = readFavs('pilots');
     const clubs = readFavs('clubs');
-    const recent = readRecent(8);
+    const recent = readRecent(3);
     if (!pilots.length && !clubs.length && !recent.length) { wrap.innerHTML = ''; return; }
     let html = '<section class="suivis" aria-label="Mes suivis"><h2>★ Mes suivis</h2>';
     if (pilots.length) {
