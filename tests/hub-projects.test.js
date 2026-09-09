@@ -205,3 +205,31 @@ test('hub-search.json vendu : structure + requêtes réelles', () => {
   const club = api.searchHubIndex('cagnes', j);
   assert.ok(club.some(r => r.kind === 'club' && r.key === 'USCBMX'), 'US Cagnes trouvée');
 });
+
+test('deux passes : fuzzy ignoré si ≥5 matchs forts, sinon appliqué', () => {
+  const { run } = makeEnv(api403);
+  const api = run();
+  const many = {
+    pilots: Array.from({ length: 6 }, (_, i) => ({ n: 'Testeur Pilot' + i, c: '', e: 1 }))
+      .concat([{ n: 'Zzz Quux', c: '', e: 1 }]),
+    clubs: {},
+  };
+  const crowded = api.searchHubIndex('testeur', many);
+  assert.ok(crowded.length > 0 && crowded.every(r => r.key.startsWith('Testeur')), 'pas de fuzzy quand 6 forts');
+  const few = { pilots: [{ n: 'Max Dupont', c: '', e: 1 }], clubs: {} };
+  assert.ok(api.searchHubIndex('dupond', few).some(r => r.key === 'Max Dupont'), 'fuzzy quand <5 forts');
+});
+
+test('full index : 17k noms, un one-timer trouvable, recherche <2s', () => {
+  const j = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hub-search.json'), 'utf8'));
+  assert.ok(j.pilots.length >= 17000 && j._meta.coverage === 100, `${j.pilots.length} pilotes, 100%`);
+  const { run } = makeEnv(api403);
+  const api = run();
+  const oneTimer = j.pilots.find(p => p.e === 1);
+  assert.ok(oneTimer, 'il existe des one-timers');
+  const t0 = Date.now();
+  const res = api.searchHubIndex(oneTimer.n, j);
+  const dt = Date.now() - t0;
+  assert.ok(res.some(r => r.key === oneTimer.n), 'one-timer trouvable par nom exact');
+  assert.ok(dt < 2000, `recherche full en ${dt}ms`);
+});

@@ -334,10 +334,13 @@
   }
   // Requête → [{ kind: 'pilot'|'club', key, name, club, score }] trié desc, max 8.
   // key pilote = nom exact (pour ?name=), key club = code (pour ?club=).
+  // Deux passes : d'abord les matchs forts sur tout l'index, le fuzzy (coûteux
+  // sur 17k noms) seulement si moins de 5 matchs forts — frappe toujours fluide.
   function searchHubIndex(query, idx) {
     const q = hubNorm(query);
     if (!q || !idx) return [];
     const out = [];
+    const strong = [];
     for (const p of (idx.pilots || [])) {
       const name = hubNorm(p.n);
       if (!name) continue;
@@ -348,8 +351,11 @@
       else if (name.startsWith(q)) s = 75;
       else if (q.length >= 3 && words.some(w => w.startsWith(q))) s = 65;
       else if (name.includes(q)) s = 50;
-      else if (q.length >= 4 && (lev2(name, q) <= 2 || words.some(w => w.length >= 4 && lev2(w, q) <= 1))) s = 32;
-      if (s > 0) out.push({ kind: 'pilot', key: p.n, name: p.n, club: p.c || '', score: s + Math.min(9, (p.e || 0) / 20) });
+      if (s > 0) strong.push({ p, s });
+    }
+    const pool = strong.length >= 5 ? strong : strong.concat(fuzzyPilotPass(q, idx));
+    for (const { p, s } of pool) {
+      out.push({ kind: 'pilot', key: p.n, name: p.n, club: p.c || '', score: s + Math.min(9, (p.e || 0) / 20) });
     }
     for (const [code, c] of Object.entries(idx.clubs || {})) {
       const cn = hubNorm(code), fn = hubNorm(c.name || '');
@@ -361,6 +367,21 @@
       if (s > 0) out.push({ kind: 'club', key: code, name: (c.name || code) + ' (' + code + ')', club: '', score: s });
     }
     return out.sort((a, b) => b.score - a.score).slice(0, 8);
+  }
+
+  // Passe fuzzy (Levenshtein ≤ 2) : nom complet ou faute sur un mot.
+  function fuzzyPilotPass(q, idx) {
+    if (q.length < 4) return [];
+    const out = [];
+    for (const p of (idx.pilots || [])) {
+      const name = hubNorm(p.n);
+      if (!name) continue;
+      const words = name.split(' ');
+      if (lev2(name, q) <= 2 || words.some(w => w.length >= 4 && lev2(w, q) <= 1)) {
+        out.push({ p, s: 32 });
+      }
+    }
+    return out;
   }
 
   // --- Recherche universelle : route, ne devine pas ---
