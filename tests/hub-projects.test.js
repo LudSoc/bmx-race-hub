@@ -43,12 +43,12 @@ const api403 = async url => {
   return { ok: false, status: 404 }; // icônes : repli initiales
 };
 
-test('API 403 + cache vide → liste statique (4 cartes, jamais de blocage)', async () => {
+test('API 403 + cache vide → liste statique (5 cartes, jamais de blocage)', async () => {
   const { run } = makeEnv(api403);
   const api = run();
   await tick();
   const html = api.__main();
-  for (const repo of ['sqorz-stats', 'sqorz-club', 'sqorz-head2head', 'sqorz-category']) {
+  for (const repo of ['sqorz-stats', 'sqorz-club', 'sqorz-head2head', 'sqorz-category', 'sqorz-rankings']) {
     assert.ok(html.includes(`https://ludsoc.github.io/${repo}/`), `carte ${repo}`);
   }
   assert.ok(html.includes('liste locale'), 'source annoncée');

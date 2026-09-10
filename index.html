@@ -240,6 +240,7 @@
     'sqorz-head2head': 'Sqorz · Head to Head',
     'sqorz-category':  'Sqorz · Stats Catégorie',
     'sqorz-stats':     'Sqorz · Stats Pilote',
+    'sqorz-rankings':  'Sqorz · Classements',
   };
   const ICON_GRADIENTS = [
     'linear-gradient(135deg,#2e4158,#6a8caf)',
@@ -271,7 +272,7 @@
   }
 
   // --- Liens profonds (base locale en dev, prod sinon) ---
-  const PAGES_LOCAL = { 'sqorz-stats': 'sqorz_stats', 'sqorz-club': 'club_stats', 'sqorz-head2head': 'h2h_stats', 'sqorz-category': 'category_stats' };
+  const PAGES_LOCAL = { 'sqorz-stats': 'sqorz_stats', 'sqorz-club': 'club_stats', 'sqorz-head2head': 'h2h_stats', 'sqorz-category': 'category_stats', 'sqorz-rankings': 'ranking_stats' };
   function pagesBase(repo) {
     const h = (location.hostname || '');
     if (h === 'localhost' || h === '127.0.0.1') return `/${PAGES_LOCAL[repo]}/`;
@@ -413,6 +414,7 @@
     { name: 'sqorz-club', branch: 'main', description: "Analysez les performances d'un club BMX Race : classements, évolutions et comparatifs par année." },
     { name: 'sqorz-head2head', branch: 'main', description: 'Comparez les performances de deux pilotes BMX Race face à face : victoires, podiums et évolution dans le temps.' },
     { name: 'sqorz-category', branch: 'master', description: "Classements et statistiques BMX Race par catégorie d'âge : évolutions, podiums et comparatifs entre organisations." },
+    { name: 'sqorz-rankings', branch: 'main', description: "Classement national des pilotes BMX Race par indice de performance : qui domine le plus sa concurrence, par catégorie et par club." },
   ];
   const REPOS_CACHE_KEY = 'sqorzHubRepos';
   const REPOS_CACHE_TTL = 24 * 3600 * 1000; // 1 jour

@@ -16,6 +16,7 @@ Central hub for BMX Race statistics tools, built on public [Sqorz](https://our.s
 | Head to Head | Face-to-face comparison between two pilots | [sqorz-head2head](https://ludsoc.github.io/sqorz-head2head/) |
 | Stats Catégorie | Rankings and stats by age category | [sqorz-category](https://ludsoc.github.io/sqorz-category/) |
 | Stats Pilote | Individual pilot history: results, progression, comparisons | [sqorz-stats](https://ludsoc.github.io/sqorz-stats/) |
+| Classements | National pilots ranking by performance index | [sqorz-rankings](https://ludsoc.github.io/sqorz-rankings/) |
 
 ### Live
 
@@ -43,6 +44,7 @@ Hub centralisé pour les outils de statistiques BMX Race, alimentés par les don
 | Head to Head | Comparaison face à face entre deux pilotes | [sqorz-head2head](https://ludsoc.github.io/sqorz-head2head/) |
 | Stats Catégorie | Classements et statistiques par catégorie d'âge | [sqorz-category](https://ludsoc.github.io/sqorz-category/) |
 | Stats Pilote | Historique individuel d'un pilote : résultats, progression, comparaisons | [sqorz-stats](https://ludsoc.github.io/sqorz-stats/) |
+| Classements | Classement national des pilotes par indice de performance | [sqorz-rankings](https://ludsoc.github.io/sqorz-rankings/) |
 
 ### Accès
 
