@@ -48,7 +48,7 @@ test('API 403 + cache vide → liste statique (5 cartes, jamais de blocage)', as
   const api = run();
   await tick();
   const html = api.__main();
-  for (const repo of ['sqorz-stats', 'sqorz-club', 'sqorz-head2head', 'sqorz-category', 'sqorz-rankings']) {
+  for (const repo of ['bmx-race-stats', 'bmx-race-club', 'bmx-race-head2head', 'bmx-race-category', 'bmx-race-rankings']) {
     assert.ok(html.includes(`https://ludsoc.github.io/${repo}/`), `carte ${repo}`);
   }
   assert.ok(html.includes('liste locale'), 'source annoncée');
@@ -59,8 +59,8 @@ test('API 403 + cache vide → liste statique (5 cartes, jamais de blocage)', as
 
 test('API 403 + cache chaud → cache local avec dates', async () => {
   const { run, store } = makeEnv(api403);
-  store.sqorzHubRepos = JSON.stringify({ at: Date.now(), repos: [
-    { name: 'sqorz-stats', description: 'Stats pilote', updated_at: '2026-09-09T10:00:00Z', default_branch: 'main', has_pages: true },
+  store.bmxRaceHubRepos = JSON.stringify({ at: Date.now(), repos: [
+    { name: 'bmx-race-stats', description: 'Stats pilote', updated_at: '2026-09-09T10:00:00Z', default_branch: 'main', has_pages: true },
   ]});
   const api = run();
   await tick();
@@ -70,20 +70,20 @@ test('API 403 + cache chaud → cache local avec dates', async () => {
 });
 
 test('API OK → frais + mise en cache', async () => {
-  const repos = [{ name: 'sqorz-club', description: 'd', updated_at: '2026-09-09T10:00:00Z', default_branch: 'main', has_pages: true }];
+  const repos = [{ name: 'bmx-race-club', description: 'd', updated_at: '2026-09-09T10:00:00Z', default_branch: 'main', has_pages: true }];
   const { run, store } = makeEnv(async url =>
     String(url).includes('api.github.com') ? { ok: true, json: async () => repos } : { ok: false, status: 404 });
   const api = run();
   await tick();
   const html = api.__main();
   assert.ok(html.includes('via GitHub API'), 'source annoncée');
-  assert.ok(html.includes('sqorz-club'), 'carte affichée');
-  assert.ok(store.sqorzHubRepos && JSON.parse(store.sqorzHubRepos).repos.length === 1, 'cache écrit');
+  assert.ok(html.includes('bmx-race-club'), 'carte affichée');
+  assert.ok(store.bmxRaceHubRepos && JSON.parse(store.bmxRaceHubRepos).repos.length === 1, 'cache écrit');
 });
 
-test('hubNorm : parité avec SqorzCommon.norm (clés h2h ?a=&b=)', () => {
+test('hubNorm : parité avec BmxCommon.norm (clés h2h ?a=&b=)', () => {
   const commonSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'sqorz_stats', 'common.js'), 'utf8');
-  const SC = new Function('window', commonSrc + '\nreturn window.SqorzCommon;')({});
+  const SC = new Function('window', commonSrc + '\nreturn window.BmxCommon;')({});
   const { run } = makeEnv(api403);
   const api = run();
   for (const name of ['Jean Dupont', 'Léa MARTIN', 'Jean-Pierre O’Brien', '  Max   VERSTAPPEN  ']) {
@@ -109,13 +109,13 @@ test('routeSearch : duel direct, favoris d’abord, replis pilote/club', () => {
   const api = run();
   const duel = api.routeSearch('Léa vs Max');
   assert.equal(duel.length, 1);
-  assert.ok(duel[0].url.includes('sqorz-head2head') && duel[0].url.includes('a=lea&b=max'), `url duel: ${duel[0].url}`);
+  assert.ok(duel[0].url.includes('bmx-race-head2head') && duel[0].url.includes('a=lea&b=max'), `url duel: ${duel[0].url}`);
   const fav = api.routeSearch('martin');
   assert.equal(fav[0].kind, 'pilot');
-  assert.ok(fav[0].url.includes('sqorz-stats') && fav[0].url.includes('name=L%C3%A9a%20Martin'), `url pilote: ${fav[0].url}`);
+  assert.ok(fav[0].url.includes('bmx-race-stats') && fav[0].url.includes('name=L%C3%A9a%20Martin'), `url pilote: ${fav[0].url}`);
   const club = api.routeSearch('besanc');
   assert.equal(club[0].kind, 'club');
-  assert.ok(club[0].url.includes('sqorz-club') && club[0].url.includes('club=besanc'), `url club: ${club[0].url}`);
+  assert.ok(club[0].url.includes('bmx-race-club') && club[0].url.includes('club=besanc'), `url club: ${club[0].url}`);
   const plain = api.routeSearch('inconnu xyz');
   assert.deepEqual(plain.map(r => r.kind), ['pilot-search', 'club-search']);
   assert.deepEqual(api.routeSearch('  '), []);
@@ -124,7 +124,7 @@ test('routeSearch : duel direct, favoris d’abord, replis pilote/club', () => {
 test('pagesBase : local en dev, prod sinon', () => {
   const { run } = makeEnv(api403);
   const api = run();
-  assert.ok(api.pilotUrl('X').startsWith('https://ludsoc.github.io/sqorz-stats/'), 'prod par défaut');
+  assert.ok(api.pilotUrl('X').startsWith('https://ludsoc.github.io/bmx-race-stats/'), 'prod par défaut');
 });
 
 test('suivis : favoris + récents rendus avec liens profonds, vide → rien', async () => {
@@ -136,9 +136,9 @@ test('suivis : favoris + récents rendus avec liens profonds, vide → rien', as
   await tick();
   const html = api.__suivis();
   assert.ok(html.includes('Mes suivis'), 'section présente');
-  assert.ok(html.includes('sqorz-stats/?name=L%C3%A9a%20Martin'), 'lien pilote');
-  assert.ok(html.includes('sqorz-club/?club=besanc'), 'lien club');
-  assert.ok(html.includes('sqorz-club/?club=courno'), 'lien récent');
+  assert.ok(html.includes('bmx-race-stats/?name=L%C3%A9a%20Martin'), 'lien pilote');
+  assert.ok(html.includes('bmx-race-club/?club=besanc'), 'lien club');
+  assert.ok(html.includes('bmx-race-club/?club=courno'), 'lien récent');
   assert.ok(html.includes('data-unfav-type="pilots"'), 'bouton retirer');
 });
 

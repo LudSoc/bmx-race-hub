@@ -15,14 +15,14 @@
     if (saved) document.documentElement.dataset.themePref = saved;
   })();
 </script>
-<title>Sqorz Hub — Outils BMX Race</title>
+<title>BMX-Race · Hub</title>
 <meta name="description" content="Accès centralisé aux outils de statistiques BMX Race : stats club, head-to-head, catégorie et recherche pilote.">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://ludsoc.github.io/sqorz-hub/">
-<meta property="og:title" content="Sqorz Hub — Outils BMX Race">
+<meta property="og:url" content="https://ludsoc.github.io/bmx-race-hub/">
+<meta property="og:title" content="BMX-Race · Hub">
 <meta property="og:description" content="Accès centralisé aux outils de statistiques BMX Race : stats club, head-to-head, catégorie et recherche pilote.">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Sqorz Hub — Outils BMX Race">
+<meta name="twitter:title" content="BMX-Race · Hub">
 <meta name="twitter:description" content="Accès centralisé aux outils de statistiques BMX Race : stats club, head-to-head, catégorie et recherche pilote.">
 <link rel="stylesheet" href="./theme.css">
 <style>
@@ -199,13 +199,13 @@
             <rect x="13" y="13" width="8" height="8" rx="1.5"/>
           </svg>
         </span>
-        Sqorz Hub
+        BMX-Race Hub
       </div>
       <a href="https://ko-fi.com/sqorz_tools" target="_blank" rel="noopener noreferrer" class="donate-btn" title="Soutenir le projet sur Ko-fi"><span class="donate-icon">☕</span><span class="donate-label">Soutenir</span></a>
       <button type="button" id="themeBtn" class="theme-btn" aria-label="Basculer le thème clair/sombre"></button>
     </div>
-    <h1>Sqorz Hub</h1>
-    <p>Tous mes outils Sqorz — statistiques, historiques pilotes, analyses par catégorie.</p>
+    <h1>BMX-Race Hub</h1>
+    <p>Tous mes outils BMX-Race — statistiques, historiques pilotes, analyses par catégorie.</p>
   </div>
 </div>
 
@@ -236,13 +236,13 @@
   }
 
   const GH_USER = 'ludsoc';
-  const HUB_REPO = 'sqorz-hub';
+  const HUB_REPO = 'bmx-race-hub';
   const DISPLAY_NAMES = {
-    'sqorz-club':      'Sqorz · Stats Club',
-    'sqorz-head2head': 'Sqorz · Head to Head',
-    'sqorz-category':  'Sqorz · Stats Catégorie',
-    'sqorz-stats':     'Sqorz · Stats Pilote',
-    'sqorz-rankings':  'Sqorz · Classements',
+    'bmx-race-club':      'BMX-Race · Stats Club',
+    'bmx-race-head2head': 'BMX-Race · Head to Head',
+    'bmx-race-category':  'BMX-Race · Stats Catégorie',
+    'bmx-race-stats':     'BMX-Race · Stats Pilote',
+    'bmx-race-rankings':  'BMX-Race · Classements',
   };
   const ICON_GRADIENTS = [
     'linear-gradient(135deg,#2e4158,#6a8caf)',
@@ -251,45 +251,57 @@
     'linear-gradient(135deg,#506f8f,#9bb5cf)',
   ];
 
-  // --- État partagé inter-outils (convention sqorz.*, cf. common.js) ---
-  // Le hub ne dépend pas de common.js : lecteurs minimaux (lecture + retrait).
+  // --- État partagé inter-outils (convention bmx.*, cf. common.js) ---
+  // Le hub ne dépend pas de common.js : lecteurs minimaux (lecture + retrait),
+  // avec migration one-shot des clés historiques « sqorz.favs.* » / « sqorz.recent ».
+  function migrateKey(newKey, legacyKey) {
+    try {
+      if (localStorage.getItem(newKey) == null) {
+        const old = localStorage.getItem(legacyKey);
+        if (old != null) localStorage.setItem(newKey, old);
+        localStorage.removeItem(legacyKey);
+      }
+    } catch (e) {}
+  }
   function readFavs(type) {
     try {
-      const v = JSON.parse(localStorage.getItem('sqorz.favs.' + type));
+      migrateKey('bmx.favs.' + type, 'sqorz.favs.' + type);
+      const v = JSON.parse(localStorage.getItem('bmx.favs.' + type));
       return Array.isArray(v) ? v.filter(e => e && e.key) : [];
     } catch { return []; }
   }
   function removeFav(type, key) {
     try {
       const list = readFavs(type).filter(e => e.key !== key);
-      localStorage.setItem('sqorz.favs.' + type, JSON.stringify(list));
+      localStorage.setItem('bmx.favs.' + type, JSON.stringify(list));
     } catch {}
     renderSuivis();
   }
   function readRecent(n = 8) {
     try {
-      const v = JSON.parse(localStorage.getItem('sqorz.recent'));
+      migrateKey('bmx.recent', 'sqorz.recent');
+      const v = JSON.parse(localStorage.getItem('bmx.recent'));
       return (Array.isArray(v) ? v : []).slice(0, n);
     } catch { return []; }
   }
 
   // --- Liens profonds (base locale en dev, prod sinon) ---
-  const PAGES_LOCAL = { 'sqorz-stats': 'sqorz_stats', 'sqorz-club': 'club_stats', 'sqorz-head2head': 'h2h_stats', 'sqorz-category': 'category_stats', 'sqorz-rankings': 'ranking_stats' };
+  const PAGES_LOCAL = { 'bmx-race-stats': 'sqorz_stats', 'bmx-race-club': 'club_stats', 'bmx-race-head2head': 'h2h_stats', 'bmx-race-category': 'category_stats', 'bmx-race-rankings': 'ranking_stats' };
   function pagesBase(repo) {
     const h = (location.hostname || '');
     if (h === 'localhost' || h === '127.0.0.1') return `/${PAGES_LOCAL[repo]}/`;
     return `https://${GH_USER}.github.io/${repo}/`;
   }
-  const pilotUrl = name => pagesBase('sqorz-stats') + '?name=' + encodeURIComponent(name);
+  const pilotUrl = name => pagesBase('bmx-race-stats') + '?name=' + encodeURIComponent(name);
   // Clé normalisée (minuscules, ponctuation conservée) : miroir de normClub (club_stats).
   const clubKey = s => (s || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-  const clubUrl = key => pagesBase('sqorz-club') + '?club=' + encodeURIComponent(clubKey(key));
-  const clubSearchUrl = q => pagesBase('sqorz-club') + '?q=' + encodeURIComponent(q);
-  // Miroir de SqorzCommon.norm pour construire les clés h2h (?a=, ?b=).
+  const clubUrl = key => pagesBase('bmx-race-club') + '?club=' + encodeURIComponent(clubKey(key));
+  const clubSearchUrl = q => pagesBase('bmx-race-club') + '?q=' + encodeURIComponent(q);
+  // Miroir de BmxCommon.norm pour construire les clés h2h (?a=, ?b=).
   const hubNorm = s => (s || '').toString().toLowerCase()
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9 ]+/g, ' ').trim().replace(/\s+/g, ' ');
-  const duelUrl = (a, b) => pagesBase('sqorz-head2head')
+  const duelUrl = (a, b) => pagesBase('bmx-race-head2head')
     + '?a=' + encodeURIComponent(hubNorm(a)) + '&b=' + encodeURIComponent(hubNorm(b));
   function parseDuelQuery(q) {
     const m = String(q || '').split(/\s+(?:vs\.?|contre)\s+/i);
@@ -412,13 +424,13 @@
   // Liste locale de secours : l'API GitHub anonyme est limitée à 60 req/h/IP
   // (403 fréquents derrière une IP partagée). branch = branche par défaut du dépôt.
   const STATIC_PROJECTS = [
-    { name: 'sqorz-stats', branch: 'main', description: 'Recherchez un pilote BMX Race et consultez son historique complet : résultats, podiums, progressions et comparaisons.' },
-    { name: 'sqorz-club', branch: 'main', description: "Analysez les performances d'un club BMX Race : classements, évolutions et comparatifs par année." },
-    { name: 'sqorz-head2head', branch: 'main', description: 'Comparez les performances de deux pilotes BMX Race face à face : victoires, podiums et évolution dans le temps.' },
-    { name: 'sqorz-category', branch: 'master', description: "Classements et statistiques BMX Race par catégorie d'âge : évolutions, podiums et comparatifs entre organisations." },
-    { name: 'sqorz-rankings', branch: 'main', description: "Classement national des pilotes BMX Race par indice de performance : qui domine le plus sa concurrence, par catégorie et par club." },
+    { name: 'bmx-race-stats', branch: 'main', description: 'Recherchez un pilote BMX Race et consultez son historique complet : résultats, podiums, progressions et comparaisons.' },
+    { name: 'bmx-race-club', branch: 'main', description: "Analysez les performances d'un club BMX Race : classements, évolutions et comparatifs par année." },
+    { name: 'bmx-race-head2head', branch: 'main', description: 'Comparez les performances de deux pilotes BMX Race face à face : victoires, podiums et évolution dans le temps.' },
+    { name: 'bmx-race-category', branch: 'master', description: "Classements et statistiques BMX Race par catégorie d'âge : évolutions, podiums et comparatifs entre organisations." },
+    { name: 'bmx-race-rankings', branch: 'main', description: "Classement national des pilotes BMX Race par indice de performance : qui domine le plus sa concurrence, par catégorie et par club." },
   ];
-  const REPOS_CACHE_KEY = 'sqorzHubRepos';
+  const REPOS_CACHE_KEY = 'bmxRaceHubRepos';
   const REPOS_CACHE_TTL = 24 * 3600 * 1000; // 1 jour
 
   function readReposCache() {
