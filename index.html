@@ -49,7 +49,7 @@
     background:radial-gradient(circle at 80% 0%,rgba(255,255,255,.22),transparent 55%),
                radial-gradient(circle at 10% 100%,rgba(30,50,80,.35),transparent 45%);
   }
-  .topbar-inner{max-width:860px;margin:0 auto;position:relative;z-index:1}
+  .topbar-inner{max-width:980px;margin:0 auto;position:relative;z-index:1}
   .brand-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
   .brand{display:flex;align-items:center;gap:12px;font-weight:600;letter-spacing:.2px;color:#fff}
   .brand .logo{
@@ -77,7 +77,7 @@
   .topbar p{margin:0;font-size:15px;max-width:min(600px,100%);color:#dce8f2;text-shadow:0 1px 6px rgba(20,35,60,.35);line-height:1.5}
 
   /* Main */
-  main{max-width:860px;margin:-72px auto 40px;padding:0 24px 32px;position:relative;z-index:2}
+  main{max-width:980px;margin:-72px auto 40px;padding:0 24px 32px;position:relative;z-index:2}
 
   /* Status bar */
   .status-bar{font-size:12px;color:var(--muted);margin-bottom:14px;display:flex;align-items:center;gap:6px}
@@ -127,6 +127,46 @@
   }
   .error-card p{color:var(--muted);font-size:14px;margin:0 0 10px}
   .error-card a{color:var(--accent)}
+
+  /* Layout 2 colonnes + panneau latéral « Données » */
+  .main-layout{display:grid;grid-template-columns:1fr 240px;gap:20px;align-items:start}
+  .side{position:sticky;top:16px;background:var(--card);border:1px solid var(--line);
+    border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;font-size:11.5px}
+  .side-head{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;
+    padding:0;border:none;background:none;font:inherit;color:var(--ink);cursor:default;
+    text-align:left}
+  .side-title{font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;
+    font-size:10px;display:flex;align-items:center;gap:6px;margin:0}
+  .side-chev{display:none;transition:transform .15s}
+  .side-dot{width:7px;height:7px;border-radius:50%;background:var(--good);flex-shrink:0}
+  .side-dot.warn{background:var(--warn)}
+  .side-dot.stale{background:var(--bad)}
+  .side-body{display:block}
+  .srcs{display:flex;flex-direction:column;gap:3px;margin-top:9px}
+  .src{display:flex;align-items:center;gap:7px;justify-content:space-between;padding:2px 0}
+  .src .l{display:flex;align-items:center;gap:6px;color:var(--ink-2);min-width:0;white-space:nowrap}
+  .src .l b{color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis}
+  .src .age{color:var(--muted);font-size:10.5px;flex-shrink:0}
+  .src .dot{width:6px;height:6px;border-radius:50%;background:var(--warn);flex-shrink:0}
+  .src.ok .dot{background:var(--good)}
+  .src.stale .dot{background:var(--bad)}
+  .side-sep{height:1px;background:var(--line);margin:10px 0}
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .stat{background:var(--card-soft);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+  .stat .v{font-size:18px;font-weight:800;letter-spacing:-.4px;line-height:1.05}
+  .stat .k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+  .side-note{font-size:10px;color:var(--muted);margin-top:10px;line-height:1.5}
+  @media(max-width:760px){
+    .main-layout{grid-template-columns:1fr}
+    .side{position:static}
+  }
+  @media(max-width:520px){
+    .side-head{cursor:pointer}
+    .side-chev{display:inline-block}
+    .side-body{display:none}
+    .side.open .side-body{display:block}
+    .side.open .side-chev{transform:rotate(180deg)}
+  }
 
   /* Footer */
   .hub-footer{font-size:11px;color:var(--muted);text-align:center;margin-top:24px}
@@ -668,14 +708,113 @@
     }, 150));
   }
 
+  // --- Panneau « Données » : fraîcheur des sources (meta de bmx-race-stats) + 2 KPI ---
+  // Les KPI (pilotes/clubs) viennent de hub-search.json, déjà chargé pour la recherche.
+  const DATA_SOURCES = [
+    { label: 'Sqorz · France',      file: 'pilots-index.meta.json' },
+    { label: 'JSTiming · Europe UEC', file: 'uec-index.meta.json' },
+    { label: 'Sqorz · Mondiaux',    file: 'uci-index.meta.json' },
+    { label: 'UCI · Coupe du monde', file: 'uci-worldcup-index.meta.json' },
+  ];
+  const metaDays = iso => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
+  const metaAge = d => d === 0 ? 'auj.' : d === 1 ? 'hier' : `il y a ${d} j`;
+
+  async function refreshFreshness() {
+    const host = document.getElementById('srcs');
+    if (!host || typeof host.querySelectorAll !== 'function') return;
+    const rows = host.querySelectorAll('.src');
+    if (!rows || !rows.length) return;
+    const base = pagesBase('bmx-race-stats');
+    const ages = [];
+    for (let i = 0; i < DATA_SOURCES.length && i < rows.length; i++) {
+      try {
+        const r = await fetch(base + DATA_SOURCES[i].file);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const j = await r.json();
+        const d = metaDays(j.generated);
+        ages.push(d);
+        const row = rows[i];
+        if (typeof row.classList.toggle === 'function') {
+          row.classList.toggle('ok', d <= 3);
+          row.classList.toggle('stale', d > 10);
+        }
+        if (typeof row.querySelector === 'function') {
+          const age = row.querySelector('.age');
+          if (age) age.textContent = metaAge(d);
+        }
+        if (typeof row.setAttribute === 'function') row.setAttribute('title', 'Généré le ' + formatDate(j.generated));
+      } catch { ages.push(Infinity); }
+    }
+    const worst = ages.reduce((a, b) => Math.max(a, b), 0);
+    const note = document.getElementById('sideNote');
+    if (note) note.textContent = worst > 10 ? '⚠ Données à rafraîchir'
+      : worst > 3 ? 'Données un peu anciennes'
+      : 'Toutes les données sont à jour';
+    const dot = document.getElementById('sideDot');
+    if (dot && typeof dot.classList.toggle === 'function') {
+      dot.classList.toggle('warn', worst > 3 && worst <= 10);
+      dot.classList.toggle('stale', worst > 10);
+    }
+  }
+
+  // Repli mobile : replié par défaut sous 520 px, dépliable ; toujours ouvert au-dessus.
+  function syncSide() {
+    const panel = document.getElementById('sidePanel');
+    const btn = document.getElementById('sideToggle');
+    if (!panel || !btn || typeof panel.classList.toggle !== 'function') return;
+    const folded = typeof window.matchMedia === 'function'
+      ? (window.matchMedia('(max-width:520px)').matches || false) : false;
+    const openNow = typeof panel.classList.contains === 'function'
+      ? panel.classList.contains('open') : true;
+    panel.classList.toggle('open', !folded || openNow);
+    btn.setAttribute('aria-expanded', (!folded || openNow) ? 'true' : 'false');
+  }
+  function initSide() {
+    const btn = document.getElementById('sideToggle');
+    if (!btn || typeof btn.addEventListener !== 'function') return;
+    btn.addEventListener('click', () => {
+      if (typeof window.matchMedia === 'function' && window.matchMedia('(max-width:520px)').matches) {
+        const panel = document.getElementById('sidePanel');
+        if (panel && typeof panel.classList.toggle === 'function') panel.classList.toggle('open');
+      }
+      syncSide();
+    });
+    if (typeof window.addEventListener === 'function') window.addEventListener('resize', syncSide);
+    syncSide();
+  }
+
   // --- Démarrage : recherche + suivis synchrones, projets en arrière-plan ---
   document.getElementById('main').innerHTML = `
-    <div class="search-wrap">
-      <input id="hubSearch" type="text" placeholder="Pilote, club, ou « Dupont vs Martin »…" autocomplete="off" aria-label="Recherche universelle">
-      <div class="search-results" id="hubSearchResults" role="listbox" hidden></div>
+    <div class="main-layout">
+      <div class="center">
+        <div class="search-wrap">
+          <input id="hubSearch" type="text" placeholder="Pilote, club, ou « Dupont vs Martin »…" autocomplete="off" aria-label="Recherche universelle">
+          <div class="search-results" id="hubSearchResults" role="listbox" hidden></div>
+        </div>
+        <div id="suivis"></div>
+        <div id="projects"></div>
+      </div>
+      <aside class="side" aria-label="Données en un coup d'œil" id="sidePanel">
+        <button type="button" class="side-head" id="sideToggle" aria-expanded="true">
+          <span class="side-title"><span class="side-dot" id="sideDot"></span> Données</span>
+          <span class="side-chev" aria-hidden="true">▾</span>
+        </button>
+        <div class="side-body">
+          <div class="srcs" id="srcs">
+            <div class="src"><span class="l"><span class="dot"></span><b>Sqorz · France</b></span><span class="age">…</span></div>
+            <div class="src"><span class="l"><span class="dot"></span><b>JSTiming · Europe UEC</b></span><span class="age">…</span></div>
+            <div class="src"><span class="l"><span class="dot"></span><b>Sqorz · Mondiaux</b></span><span class="age">…</span></div>
+            <div class="src"><span class="l"><span class="dot"></span><b>UCI · Coupe du monde</b></span><span class="age">…</span></div>
+          </div>
+          <div class="side-sep"></div>
+          <div class="stats">
+            <div class="stat"><div class="v" id="pilotTotal">…</div><div class="k">Pilotes</div></div>
+            <div class="stat"><div class="v" id="clubTotal">…</div><div class="k">Clubs</div></div>
+          </div>
+          <div class="side-note" id="sideNote">Chargement…</div>
+        </div>
+      </aside>
     </div>
-    <div id="suivis"></div>
-    <div id="projects"></div>
   `;
   renderSuivis();
   wireSearch();
@@ -688,6 +827,10 @@
     searchIdx = j;
     const inp = document.getElementById('hubSearch');
     if (inp && inp.value.trim()) renderSearchResults(routeSearch(inp.value));
+    const pTot = document.getElementById('pilotTotal');
+    const cTot = document.getElementById('clubTotal');
+    if (pTot) pTot.textContent = (j.pilots || []).length.toLocaleString('fr-FR');
+    if (cTot) cTot.textContent = Object.keys(j.clubs || {}).length.toLocaleString('fr-FR');
   }).catch(() => {});
   document.addEventListener('click', e => {
     const b = e.target.closest('[data-unfav-type]');
@@ -695,6 +838,8 @@
     removeFav(b.dataset.unfavType, b.dataset.unfavKey);
   });
   loadProjects();
+  initSide();
+  refreshFreshness().catch(() => {});
 </script>
 
 </body>
