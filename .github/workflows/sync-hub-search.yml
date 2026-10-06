@@ -1,0 +1,48 @@
+name: Sync hub-search
+
+# Resynchronise le mini-index de recherche (hub-search.json) depuis le dépôt
+# source bmx-race-stats, où il est regénéré chaque lundi par le cron « Build
+# pilots index » (build-index.yml).
+#
+# Ce fichier liste tous les noms republiés et est traversé par la liste
+# d'exclusion RGPD côté source : sans cette synchronisation, un pilote ayant
+# demandé son effacement (art. 17/21) resterait indéfiniment dans la recherche
+# de ce site.
+
+on:
+  schedule:
+    - cron: '40 11 * * 1' # chaque lundi 11h40 UTC, après bmx-race-tools (11h30)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Télécharger hub-search.json depuis bmx-race-stats (main)
+        run: |
+          for attempt in 1 2 3; do
+            if curl -fsSL --retry 2 \
+              "https://raw.githubusercontent.com/LudSoc/bmx-race-stats/main/hub-search.json" \
+              -o "hub-search.json"; then
+              break
+            fi
+            sleep 5
+          done
+
+      - name: Vérifier les changements
+        run: |
+          if git diff --quiet -- hub-search.json; then
+            echo "Aucun changement — rien à commiter."
+            exit 0
+          fi
+          git add hub-search.json
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "hub: synchronisation du mini-index de recherche (cron hebdo)"
+          git push
+          echo "hub-search.json mis à jour et publié."
